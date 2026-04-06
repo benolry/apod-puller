@@ -13,13 +13,14 @@ for cmd in curl magick identify plasma-apply-wallpaperimage; do
 done
 
 # Short delay in case the system is still booting
-#sleep 5
+sleep 3
 
 # Create cache directory if it doesn't exist
 CACHE_DIR="$HOME/.cache/apod"
 mkdir -p "$CACHE_DIR"
 
 # 1. Fetch the APOD main page
+#APOD_URL="https://apod.nasa.gov/apod/ap260316.html"
 APOD_URL="https://apod.nasa.gov/apod/"
 APOD_URL_PREFIX="https://apod.nasa.gov/apod/"
 
@@ -35,13 +36,13 @@ if [ -z "$IMG_PATH" ]; then
 fi
 
 # Extract and clean Title and Explanation
-TITLE=$(echo "$RESPONSE" | tr '\n' ' ' | grep -oP '<center>\s*<b>.*?<\/center>' | head -1 | sed 's/<[^>]*>//g; s/   / - /g; s/  */ /g' | xargs -0)
+TITLE=$(echo "$RESPONSE" | tr '\n' ' ' | grep -oP '<center>\s*<b>.*?<\/center>' | head -1 | sed 's/<[^>]*>//g; s/   / - /g; s/  */ /g; s/^ //g' | xargs -0)
 
 echo "Title:"
 echo "$TITLE"
 echo
 
-EXPLANATION=$(echo "$RESPONSE" | tr '\n' ' ' | grep -zoP '(?s)<b>\s*Explanation:\s*</b>.*?<p>' | tr -d '\0' | sed 's/<[^>]*>//g' | xargs -0)
+EXPLANATION=$(echo "$RESPONSE" | tr '\n' ' ' | grep -zoP '(?s)<b>\s*Explanation:\s*</b>.*?<p>' | tr -d '\0' | sed 's/<[^>]*>//g; s/  */ /g; s/^ //g' | xargs -0)
 
 echo "Description:"
 echo "$EXPLANATION"
@@ -74,7 +75,8 @@ if [ ! -f "$ORIGINAL_IMAGE" ]; then
     # Second: Ensure it's at most 3840px (downscale if larger)
     magick "$ORIGINAL_IMAGE" -resize "3840x>" "$ORIGINAL_IMAGE"
 else
-    echo "Original image already exists."
+    echo "Original image already exists. No further files will be created."
+    exit 1
 fi
 
 # Overlay text onto a copy of the image using ImageMagick
@@ -124,12 +126,7 @@ if [ ! -f "$WALLPAPER_FINAL" ]; then
         -composite "$WALLPAPER_FINAL"
     # Check if file exists now
     if [ ! -f "$WALLPAPER_FINAL" ]; then
-        echo "CRITICAL: Magick finished but NO FILE was created at $WALLPAPER_FINAL" >&2
-        # Test if Pango is the problem by trying a simple label
-        echo "Testing fallback without Pango..."
-        magick "$ORIGINAL_IMAGE" -gravity south -background "black" -fill white \
-               -size "%[fx:w*0.8]x" -font "sans" label:"Pango failed - this is a fallback" \
-               -composite "$WALLPAPER_FINAL"
+        echo "CRITICAL: Magick finished but NO FILE was created at $WALLPAPER_FINAL"
     fi
 
     # Apply the processed image as KDE Plasma wallpaper
