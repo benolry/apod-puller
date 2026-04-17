@@ -67,16 +67,21 @@ if [ ! -f "$ORIGINAL_IMAGE" ]; then
         exit 1
     fi
 
-    echo "Resizing image (Target: 1920px - 3840px width)..."
+    # Define your target resolution
+    TARGET_W=3840
+    TARGET_H=2160
 
-    # First: Ensure it's at least 1920px (upscale if smaller)
-    magick "$ORIGINAL_IMAGE" -resize "1920x<" "$ORIGINAL_IMAGE"
+    echo "Processing image to fit ${TARGET_W}x${TARGET_H} with blurred backdrop..."
+    TEMP_IMAGE="$CACHE_DIR/temp-$FILE_NAME"
 
-    # Second: Ensure it's at most 3840px (downscale if larger)
-    magick "$ORIGINAL_IMAGE" -resize "3840x>" "$ORIGINAL_IMAGE"
-else
-    echo "Original image already exists. No further files will be created."
-    exit 1
+    # Load the image first, then use -clone to create the layers
+    magick "$ORIGINAL_IMAGE" \
+        \( -clone 0 -resize "${TARGET_W}x${TARGET_H}^" -gravity center -extent "${TARGET_W}x${TARGET_H}" -blur 0x8 \) \
+        \( -clone 0 -resize "${TARGET_W}x${TARGET_H}" \) \
+        -delete 0 -gravity center -composite "$TEMP_IMAGE"
+    else
+        echo "Original image already exists. No further files will be created."
+        exit 1
 fi
 
 # Overlay text onto a copy of the image using ImageMagick
@@ -98,9 +103,9 @@ if [ ! -f "$WALLPAPER_FINAL" ]; then
 
     echo "Starting Magick processing..."
 
-    # Dimensionen sicher einlesen (ohne versteckte Leerzeichen)
-    IMG_W=$(identify -format "%w" "$ORIGINAL_IMAGE")
-    IMG_H=$(identify -format "%h" "$ORIGINAL_IMAGE")
+    # Read Dimensions
+    IMG_W=$(identify -format "%w" "$TEMP_IMAGE")
+    IMG_H=$(identify -format "%h" "$TEMP_IMAGE")
 
     # width of the text block
     TEXT_WIDTH=$(python3 -c "print(int($IMG_W * 0.8))")
@@ -111,8 +116,8 @@ if [ ! -f "$WALLPAPER_FINAL" ]; then
 
     echo "Debug: W=$IMG_W, H=$IMG_H, TextWidth=$TEXT_WIDTH, OffsetY=$OFFSET_Y"
 
-    # 5. image manipulation
-    magick "$ORIGINAL_IMAGE" \
+    # Compose image and Text
+    magick "$TEMP_IMAGE" \
         \( -size "${TEXT_WIDTH}x" \
            -background "rgba(0,0,0,0.0)" \
            -fill "#D3D3D3" \
@@ -138,3 +143,4 @@ fi
 
 # cleanup
 rm -f "$PANGO_FILE"
+rm -f "$TEMP_IMAGE"
